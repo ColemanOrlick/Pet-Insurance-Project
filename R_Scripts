@@ -1,1 +1,208 @@
+# STEP 1
+set.seed(123) 
 
+# PARAMETERS
+lambda <- 0.7             # Average claims per dog per year
+avg_claim_cost <- 425     # Average claim cost (we'll use this later)
+annual_premium <- 675     # Annual insurance premium
+deductible <- 250         # Annual deductible
+policy_limit <- 5000      # Annual policy limit
+n_simulations <- 10000    # Number of dog-years to simulate
+
+#Simulate Claim Freq
+claims_per_dog <- rpois(n_simulations, lambda)
+
+# Quick summary to validate
+table(claims_per_dog)
+mean(claims_per_dog)   
+
+
+
+
+# Step 2 Per Claim
+
+#PARAMETERS
+meanlog <- 5.85
+sdlog <- 0.7
+
+rlnorm(1, meanlog, sdlog)
+
+# TOTAL NUMBER OF CLAIMS
+total_claims <- sum(claims_per_dog)
+
+# CLAIM COST OF EACH CLAIM
+claim_costs <- rlnorm(total_claims, meanlog, sdlog)
+
+# SUMMARY
+summary(claim_costs)
+hist(claim_costs, breaks = 50, main = "Simulated Claim Costs", xlab = "Cost ($)")
+
+
+
+
+# STEP 3
+
+# Vector to store total claims cost per dog
+total_claims_cost_per_dog <- numeric(length(claims_per_dog))
+
+# Index to track position inside claim_costs
+claim_pointer <- 1
+
+# Loop through each dog
+for (i in 1:length(claims_per_dog)) {
+  
+  num_claims <- claims_per_dog[i]  # Number of claims this dog had
+  
+  if (num_claims > 0) {
+    # Sum up this dog's claims
+    dog_claims <- sum(claim_costs[claim_pointer:(claim_pointer + num_claims - 1)])
+    
+    total_claims_cost_per_dog[i] <- dog_claims
+    
+    # Move the pointer forward
+    claim_pointer <- claim_pointer + num_claims
+  }
+  
+  # If dog had zero claims, total_claims_cost_per_dog[i] stays 0 (already set)
+}
+
+# SUMMARY
+summary(total_claims_cost_per_dog)
+
+
+
+
+# STEP 4
+
+# Apply deductible
+payout_after_deductible <- pmax(0, total_claims_cost_per_dog - deductible)
+
+# SUMMARY
+summary(payout_after_deductible)
+
+
+
+
+#STEP 5
+
+# Apply $5,000 policy limit
+final_insurer_payout <- pmin(payout_after_deductible, policy_limit)
+
+# SUMMARY
+summary(final_insurer_payout)
+
+
+
+
+#Step 6
+
+# Average payout per policy
+mean_payout <- mean(final_insurer_payout)
+
+# Average profit per policy
+mean_profit <- annual_premium - mean_payout
+
+# Profit margin (%)
+profit_margin <- mean_profit / annual_premium
+
+# Print Results
+cat("Average insurer payout per policy: $", round(mean_payout, 2), "\n")
+cat("Average insurer profit per policy: $", round(mean_profit, 2), "\n")
+cat("Profit margin: ", round(profit_margin * 100, 2), "%\n")
+
+
+
+
+#STEP 7 Owners Perspective 
+
+# How many owners had payouts greater than premium?
+num_wins <- sum(final_insurer_payout > annual_premium)
+
+# Proportion of "winning" owners
+percent_wins <- num_wins / length(final_insurer_payout)
+
+# Print result
+cat("Percent of owners who 'won' (got more back than they paid):", round(percent_wins * 100, 2), "%\n")
+
+
+
+
+#STEP 8 Compare 
+
+# Owner pays full claim if it's under deductible; else, pays deductible
+owner_paid_share <- pmin(total_claims_cost_per_dog, deductible)
+
+# Net annual cost for insured owner = premium + their out-of-pocket share
+insured_owner_cost <- annual_premium + owner_paid_share
+
+# SUMMARY
+summary(insured_owner_cost)
+
+# Uninsured owners pay the full claim cost (no cap, no help)
+uninsured_owner_cost <- total_claims_cost_per_dog
+
+#SUMMARY
+summary(uninsured_owner_cost)
+
+# Average cost
+mean(insured_owner_cost)
+mean(uninsured_owner_cost)
+
+# How often insured owners paid *less* than uninsured owners
+num_saved <- sum(insured_owner_cost < uninsured_owner_cost)
+percent_saved <- num_saved / length(insured_owner_cost)
+
+cat("Percent of owners for whom insurance saved money:", round(percent_saved * 100, 2), "%\n")
+
+
+
+
+
+# STEP 9 VISUALS
+
+# HIST
+hist(final_insurer_payout,
+     breaks = 50,
+     main = "Distribution of Annual Insurance Payouts per Dog",
+     xlab = "Insurance Payout Amount ($)",
+     col = "skyblue")
+
+     abline(v = 675, col = "red", lty = 2)
+     text(x = 675, y = -200, labels = "Premium = $675", col = "red", cex = 0.8, pos = 1, xpd = TRUE)
+     
+     
+# BOX
+boxplot(uninsured_owner_cost, insured_owner_cost,
+        names = c("Uninsured", "Insured"),
+        col = c("lightgray", "lightblue"),
+        ylab = "Annual Cost to Owner ($)",
+        main = "Annual Owner Cost: Insured vs Uninsured")
+
+        text(x = 2.2, y = 675 - 70, labels = "Premium = $675", col = "red", cex = 0.8)
+        abline(h = 675, col = "red", lty = 2)
+        
+        
+# BAR        
+percent_saved <- 0.094
+bar_values <- c(100 - percent_saved * 100, percent_saved * 100)
+bar_positions <- barplot(bar_values,
+        names.arg = c("Did Not Save", "Saved"),
+        col = c("blue", "grey"),
+        ylim = c(0, 100),
+        main = "Percent of Owners Who Saved Money with Insurance",
+        ylab = "Percent of Owners")
+
+        text(x = bar_positions, 
+        y = bar_values + 3, 
+        labels = paste0(round(bar_values, 1), "%"), 
+        cex = 0.8)
+        
+
+# DENSITY
+plot(density(final_insurer_payout),
+     main = "Density of Final Insurance Payouts",
+     xlab = "Payout Amount ($)",
+     col = "darkblue", lwd = 2)
+     abline(v = 675, col = "red", lty = 2)
+     xlab = "Payout Amount ($)"
+     ylab = "Density"
